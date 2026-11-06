@@ -111,20 +111,23 @@ def _build_modified_huffman(original_freq, threshold, total):
 
     return huffman_codes, others_symbols, root
 
-def _generate_tree_gui_data(node):
+def _generate_tree_gui_data(node, total):
     if node is None:
         return None
     
+    prob = node.freq / total if total > 0 else 0
+    
     data = {
         "freq": node.freq,
+        "prob": prob, 
         "symbol": node.symbol if node.symbol != OTHERS_SYMBOL else "<Others>",
         "children": []
     }
     
     if node.left:
-        data["children"].append(("0", _generate_tree_gui_data(node.left)))
+        data["children"].append(("0", _generate_tree_gui_data(node.left, total)))
     if node.right:
-        data["children"].append(("1", _generate_tree_gui_data(node.right)))
+        data["children"].append(("1", _generate_tree_gui_data(node.right, total)))
         
     return data
 
@@ -148,7 +151,9 @@ def compress_file(input_path, output_path, threshold=0.05):
     huffman_codes, others_symbols, root = _build_modified_huffman(
         freq, threshold, total
     )
-    tree_data = _generate_tree_gui_data(root)
+    
+    tree_data = _generate_tree_gui_data(root, total)
+    
     others_set = set(others_symbols)
     others_code = huffman_codes.get(OTHERS_SYMBOL, None)
 

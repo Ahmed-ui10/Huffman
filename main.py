@@ -2,8 +2,6 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog, messagebox, scrolledtext
 import os
-import math
-from collections import Counter
 
 from huffman_compression import compress_file
 from huffman_decompression import decompress_file
@@ -75,11 +73,10 @@ class HuffmanGUI:
         mid = tk.Frame(root, bg=BG_MAIN)
         mid.pack(fill="both", expand=True, padx=10, pady=5)
         mid.columnconfigure(0, weight=1)
-        mid.columnconfigure(1, weight=1)
         mid.rowconfigure(0, weight=1)
 
         left = tk.Frame(mid, bg=BG_PANEL, bd=0)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        left.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=5)
 
         tk.Label(left, text="  Huffman Data:",
                  anchor="w", bg=BG_PANEL, fg=FG_LABEL,
@@ -108,35 +105,6 @@ class HuffmanGUI:
         self.tree_canvas.pack(fill="both", expand=True)
         self.notebook.add(tab_tree, text="Huffman Tree")
 
-        right = tk.Frame(mid, bg=BG_PANEL, bd=0)
-        right.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
-
-        tk.Label(right, text="  Statistics:",
-                 anchor="w", bg=BG_PANEL, fg=FG_LABEL,
-                 font=("Arial", 12, "bold"),
-                 pady=6).pack(fill="x")
-
-        self.stats_area = scrolledtext.ScrolledText(
-            right, height=20,
-            font=("Consolas", 10),
-            bg=BG_TEXT, fg=FG_ACCENT,
-            insertbackground=FG_ACCENT,
-            selectbackground="#264f78",
-            relief="flat", borderwidth=0,
-            padx=8, pady=8)
-        self.stats_area.pack(fill="both", expand=True, padx=4, pady=(0, 4))
-
-    def _entropy(self, text):
-        if not text:
-            return 0.0
-        total = len(text)
-        counts = Counter(text)
-        H = 0.0
-        for c in counts.values():
-            p = c / total
-            H -= p * math.log2(p)
-        return H
-
     def draw_tree(self, tree_data):
         self.tree_canvas.delete("all")
         if not tree_data:
@@ -152,30 +120,31 @@ class HuffmanGUI:
         self.tree_canvas.update_idletasks()
         W = self.tree_canvas.winfo_width()
         H = self.tree_canvas.winfo_height()
-        if W < 100: W = 600
-        if H < 100: H = 500
+        
+        if W < 200: W = 1200
+        if H < 200: H = 800
 
-        level_height = H / (depth + 1) 
-        node_radius = max(12, min(25, 150 // (2**max(0, depth-2)))) 
+        node_radius = max(35, min(50, 300 // (depth + 1)))
+        level_height = max(110, H / (depth + 1))
 
-        def draw_node(node, x, y, width, depth_level):
+        def draw_node(node, x, y, x_min, x_max, depth_level):
             self.tree_canvas.create_oval(
                 x - node_radius, y - node_radius,
                 x + node_radius, y + node_radius,
-                fill="#2d2d2d", outline=FG_ACCENT, width=2
+                fill="#2d2d2d", outline=FG_ACCENT, width=3
             )
             
             label = ""
             if node["symbol"]:
                 sym = node["symbol"]
                 if len(sym) > 6: sym = sym[:4] + ".."
-                label = f"{sym}\n({node['freq']})"
+                label = f"{sym}\n({node['prob']:.3f})" 
             else:
-                label = f"{node['freq']}"
+                label = f"{node['prob']:.3f}"
                 
             self.tree_canvas.create_text(
                 x, y, text=label, fill=FG_LABEL, 
-                font=("Arial", max(7, int(node_radius/1.5)), "bold"),
+                font=("Arial", max(12, int(node_radius/2.2)), "bold"),
                 justify="center"
             )
 
@@ -185,10 +154,14 @@ class HuffmanGUI:
                     child_x = x
                     child_y = y + level_height
                     self.tree_canvas.create_line(x, y + node_radius, child_x, child_y - node_radius, fill="#888888", width=2)
-                    draw_node(node["children"][0][1], child_x, child_y, width/2, depth_level+1)
+                    draw_node(node["children"][0][1], child_x, child_y, x_min, x_max, depth_level+1)
                 else:
+                    mid_x = (x_min + x_max) / 2
+                    left_x = (x_min + mid_x) / 2
+                    right_x = (mid_x + x_max) / 2
+
                     for i, (edge_label, child) in enumerate(node["children"]):
-                        cx = x - width/4 if i == 0 else x + width/4
+                        cx = left_x if i == 0 else right_x
                         cy = y + level_height
                         
                         self.tree_canvas.create_line(
@@ -196,16 +169,19 @@ class HuffmanGUI:
                             fill="#888888", width=2
                         )
                         
-                        mid_x = (x + cx) / 2
-                        mid_y = (y + cy) / 2
+                        mid_x_text = (x + cx) / 2
+                        mid_y_text = (y + cy) / 2
                         self.tree_canvas.create_text(
-                            mid_x, mid_y, text=edge_label, fill="#ff5c5c",
-                            font=("Arial", 10, "bold")
+                            mid_x_text, mid_y_text, text=edge_label, fill="#ff5c5c",
+                            font=("Arial", 14, "bold")
                         )
                         
-                        draw_node(child, cx, cy, width/2, depth_level+1)
+                        if i == 0:
+                            draw_node(child, cx, cy, x_min, mid_x, depth_level+1)
+                        else:
+                            draw_node(child, cx, cy, mid_x, x_max, depth_level+1)
 
-        draw_node(tree_data, W/2, level_height/2 + 30, W, 0)
+        draw_node(tree_data, W/2, level_height/2 + 40, 0, W, 0)
 
     def do_compress(self):
         try:
@@ -257,38 +233,6 @@ class HuffmanGUI:
 
         self.draw_tree(tree_data)
 
-        with open(input_path, "r", encoding="utf-8") as f:
-            text = f.read()
-
-        original_bits = len(text) * 8
-        compressed_bits = os.path.getsize(save_path) * 8
-        H = self._entropy(text)
-
-        if compressed_bits > 0:
-            ratio = original_bits / compressed_bits
-            saving = (1 - compressed_bits / original_bits) * 100
-        else:
-            ratio = 0
-            saving = 0
-
-        stats = (
-            "=======================================\n"
-            "     Modified Huffman Statistics\n"
-            "=======================================\n"
-            f"Original Size       : {original_bits} bits\n"
-            f"Compressed Size     : {compressed_bits} bits\n"
-            f"Original Chars      : {len(text)}\n"
-            f"Threshold           : {threshold}\n"
-            f"Entropy             : {H:.4f} bits/symbol\n"
-            f"Compression Ratio   : {ratio:.3f}:1\n"
-            f"Space Saving        : {saving:.2f}%\n"
-            f"Huffman Codes       : {len(codes)}\n"
-            f"Symbols in Others   : {len(others)}\n\n"
-            f"✅ Compressed file saved at:\n{save_path}\n"
-        )
-        self.stats_area.delete("1.0", tk.END)
-        self.stats_area.insert(tk.END, stats)
-
         messagebox.showinfo("Success", "Compression completed successfully ✅")
 
     def do_decompress(self):
@@ -323,23 +267,12 @@ class HuffmanGUI:
 
         self.tree_canvas.delete("all")
 
-        self.stats_area.delete("1.0", tk.END)
-        self.stats_area.insert(
-            tk.END,
-            "=======================================\n"
-            "    Decompression Statistics\n"
-            "=======================================\n"
-            f"Number of Codes     : {len(tags)}\n"
-            f"Original Text Size  : {len(text)} chars\n\n"
-            f"✅ Decompressed file saved at:\n{save_path}\n"
-        )
         messagebox.showinfo("Success", "Decompression completed successfully ✅")
 
     def clear_all(self):
         self.compressed_file = None
         self.codes = []
         self.codes_area.delete("1.0", tk.END)
-        self.stats_area.delete("1.0", tk.END)
         self.tree_canvas.delete("all")
 
 
